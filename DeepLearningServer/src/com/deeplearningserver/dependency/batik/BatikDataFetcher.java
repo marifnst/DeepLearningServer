@@ -18,8 +18,6 @@
 
 package com.deeplearningserver.dependency.batik;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +28,8 @@ import org.deeplearning4j.util.MathUtils;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.dataset.DataSet;
 import org.nd4j.linalg.factory.Nd4j;
+
+import com.deeplearningserver.util.Variables;
 
 /**
  * Data fetcher for the MNIST dataset
@@ -58,20 +58,20 @@ public class BatikDataFetcher extends BaseDataFetcher {
 	public BatikDataFetcher(boolean binarize, boolean train, boolean shuffle,
 			long rngSeed) throws IOException {
 
-		String images = "D:\\nitip\\kuliah\\ui\\thesis\\android\\dataset batik\\final\\28x28\\";
+//		String images = "D:\\nitip\\kuliah\\ui\\thesis\\android\\dataset batik\\final\\28x28\\";
 		String labels = "";
 
 		try {
-			man = new BatikManager(images, labels, train, imageWidth * imageHeight);
+			man = new BatikManager(Variables.PATH_DATA, labels, train, Variables.BASE_DATA_WIDTH * Variables.BASE_DATA_WIDTH);
 		} catch (Exception e) {
-			man = new BatikManager(images, labels, train, imageWidth * imageHeight);
+			man = new BatikManager(Variables.PATH_DATA, labels, train, Variables.BASE_DATA_WIDTH * Variables.BASE_DATA_WIDTH);
 		}
 
 		try {
-			numOutcomes = 27; // total jenis data index
+			numOutcomes = Variables.NUM_OUTCOMES;
 			this.binarize = binarize;
 			cursor = 0;
-			// inputColumns = man.getImages().getEntryLength();
+
 			inputColumns = imageWidth * imageHeight;
 			this.train = train;
 			this.shuffle = shuffle;
@@ -83,6 +83,7 @@ public class BatikDataFetcher extends BaseDataFetcher {
 				order = new int[NUM_EXAMPLES_TEST];
 				totalExamples = NUM_EXAMPLES_TEST;
 			}
+			
 			for (int i = 0; i < order.length; i++)
 				order[i] = i;
 			rng = new Random(rngSeed);

@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.deeplearningserver.dependency.batik.BatikDataSetIterator;
+import com.deeplearningserver.util.Variables;
 
 /**
  * Created by willow on 5/11/15.
@@ -36,20 +37,20 @@ public class CNNBatikExample {
     private static final Logger log = LoggerFactory.getLogger(CNNBatikExample.class);
 
     public static void main(String[] args) throws Exception {
-        int numRows = 28;
-        int numColumns = 28;
         int nChannels = 1;
         int outputNum = 27;
-        int numSamples = 74;
-        int batchSize = 1;
-        int iterations = 100;
+        int numSamples = 60;
+        int batchSize = 10;
+        int iterations = 1;
         int splitTrainNum = (int) (batchSize * .8);
         int seed = 123;
         int listenerFreq = iterations/5;
         
+        System.out.println(new Random(seed).nextInt());
+        
         DataSet batik;
         SplitTestAndTrain trainTest;
-        DataSet trainInput;
+        DataSet trainInput = null;
         List<INDArray> testInput = new ArrayList<>();
         List<INDArray> testLabels = new ArrayList<>();
 
@@ -63,23 +64,20 @@ public class CNNBatikExample {
 				.gradientNormalization(GradientNormalization.RenormalizeL2PerLayer)
 				.optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT)
 				.list(3)
-				.layer(0,
-						new ConvolutionLayer.Builder(10, 10).stride(2, 2)
+				.layer(0,new ConvolutionLayer.Builder(10, 10).stride(2, 2)
 								.nIn(nChannels).nOut(6)
 								.weightInit(WeightInit.XAVIER)
 								.activation("relu").build())
-				.layer(1,
-						new SubsamplingLayer.Builder(
-								SubsamplingLayer.PoolingType.MAX, new int[] {
-										2, 2 }).build())
-				.layer(2,
-						new OutputLayer.Builder(
+				.layer(1, new SubsamplingLayer.Builder(SubsamplingLayer.PoolingType.MAX, new int[] {2, 2 }).build())
+				.layer(2, new OutputLayer.Builder(
 								LossFunctions.LossFunction.NEGATIVELOGLIKELIHOOD)
-								.nOut(outputNum).weightInit(WeightInit.XAVIER)
-								.activation("softmax").build()).backprop(true)
+								.nOut(outputNum)
+								.weightInit(WeightInit.XAVIER)
+								.activation("softmax")
+								.build()).backprop(true)
 				.pretrain(false);
 
-        new ConvolutionLayerSetup(builder,numRows,numColumns,nChannels);
+        new ConvolutionLayerSetup(builder, Variables.BASE_DATA_HEIGHT, Variables.BASE_DATA_WIDTH, nChannels);
 
         MultiLayerConfiguration conf = builder.build();
 
@@ -92,20 +90,23 @@ public class CNNBatikExample {
         	batik = batikIter.next();
             trainTest = batik.splitTestAndTrain(splitTrainNum, new Random(seed)); // train set that is the result
             trainInput = trainTest.getTrain(); // get feature matrix and labels for training
+//            System.out.println(trainInput.getFeatureMatrix().rows());
             testInput.add(trainTest.getTest().getFeatureMatrix());
             testLabels.add(trainTest.getTest().getLabels());
             model.fit(trainInput);
         }
-//
+
         log.info("Evaluate weights....");
-//
+
         log.info("Evaluate model....");
+//        System.out.println(trainInput);
+//        System.out.println(testInput.size());        
         Evaluation eval = new Evaluation(outputNum);
         for(int i = 0; i < testInput.size(); i++) {
             INDArray output = model.output(testInput.get(i));
             eval.eval(testLabels.get(i), output);
         }
-//        
+        
         INDArray output = model.output(testInput.get(0));
         eval.eval(testLabels.get(0), output);
         log.info(eval.stats());
