@@ -1,10 +1,22 @@
 package com.deeplearningserver.services;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import org.canova.api.io.WritableConverter;
+import org.canova.api.io.converters.WritableConverterException;
+import org.canova.api.io.data.IntWritable;
+import org.canova.api.io.data.Text;
+import org.canova.api.records.reader.RecordReader;
+import org.canova.api.records.reader.impl.CSVRecordReader;
+import org.canova.api.records.reader.impl.ComposableRecordReader;
+import org.canova.api.split.FileSplit;
+import org.canova.api.writable.Writable;
+import org.canova.image.recordreader.ImageRecordReader;
+import org.deeplearning4j.datasets.canova.RecordReaderDataSetIterator;
 import org.deeplearning4j.eval.Evaluation;
 import org.deeplearning4j.nn.api.OptimizationAlgorithm;
 import org.deeplearning4j.nn.conf.GradientNormalization;
@@ -32,21 +44,23 @@ import com.deeplearningserver.util.Variables;
 /**
  * Created by willow on 5/11/15.
  */
-public class CNNBatikExample {
+public class CNNCifarExample {
 
     private static final Logger log = LoggerFactory.getLogger(CNNBatikExample.class);
+    private static final List<String> LABELS = Arrays.asList("airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck");
+    private static final int BATCH_SIZE = 100;
 
     public static void main(String[] args) throws Exception {
         int nChannels = 1;
         int outputNum = 27;
-        int numSamples = 60;
-        int batchSize = 10;
+        int numSamples = 50000;
+        int batchSize = 500;
         int iterations = 1;
         int splitTrainNum = (int) (batchSize * .8);
         int seed = 123;
         int listenerFreq = iterations/5;
         
-//        System.out.println(new Random(seed).nextInt());
+        System.out.println(new Random(seed).nextInt());
         
         DataSet batik;
         SplitTestAndTrain trainTest;
@@ -55,7 +69,19 @@ public class CNNBatikExample {
         List<INDArray> testLabels = new ArrayList<>();
 
         log.info("Load data....");
-        DataSetIterator batikIter = new BatikDataSetIterator(batchSize, numSamples, false);
+        RecordReader recordReader = loadData();
+//        DataSetIterator batikIter = new BatikDataSetIterator(batchSize, numSamples, false);
+        DataSetIterator batikIter = new RecordReaderDataSetIterator(recordReader, new WritableConverter() {
+            @Override
+            public Writable convert(Writable writable) throws WritableConverterException {
+                if (writable instanceof Text) {
+                    String label = writable.toString().replaceAll("\u0000", "");
+                    int index = LABELS.indexOf(label);
+                    return new IntWritable(index);
+                }
+                return writable;
+            }
+        }, BATCH_SIZE, 1024, 10);
         
         log.info("Build model....");
 		MultiLayerConfiguration.Builder builder = new NeuralNetConfiguration.Builder()
@@ -113,5 +139,15 @@ public class CNNBatikExample {
         log.info("****************Example finished********************");
 
 
+    }
+    
+    public static RecordReader loadData() throws Exception {
+        RecordReader imageReader = new ImageRecordReader(32, 32, false);
+        imageReader.initialize(new FileSplit(new File("D:/nitip/kuliah/ui/thesis/android/dataset cifar/kaggle/train")));
+
+        RecordReader labelsReader = new CSVRecordReader();
+        labelsReader.initialize(new FileSplit(new File("D:/nitip/kuliah/ui/thesis/android/dataset cifar/kaggle/trainLabels.csv")));
+
+        return new ComposableRecordReader(imageReader, labelsReader);
     }
 }

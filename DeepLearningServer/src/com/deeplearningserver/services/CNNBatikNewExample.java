@@ -1,10 +1,19 @@
 package com.deeplearningserver.services;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
+import org.canova.api.records.reader.RecordReader;
+import org.canova.api.split.FileSplit;
+import org.canova.image.recordreader.ImageRecordReader;
+import org.deeplearning4j.datasets.canova.RecordReaderDataSetIterator;
 import org.deeplearning4j.eval.Evaluation;
 import org.deeplearning4j.nn.api.OptimizationAlgorithm;
 import org.deeplearning4j.nn.conf.GradientNormalization;
@@ -32,21 +41,19 @@ import com.deeplearningserver.util.Variables;
 /**
  * Created by willow on 5/11/15.
  */
-public class CNNBatikExample {
+public class CNNBatikNewExample {
 
-    private static final Logger log = LoggerFactory.getLogger(CNNBatikExample.class);
+    private static final Logger log = LoggerFactory.getLogger(CNNBatikNewExample.class);
 
     public static void main(String[] args) throws Exception {
         int nChannels = 1;
         int outputNum = 27;
-        int numSamples = 60;
-        int batchSize = 10;
+        int numSamples = 50000;
+        int batchSize =  100;
         int iterations = 1;
         int splitTrainNum = (int) (batchSize * .8);
         int seed = 123;
         int listenerFreq = iterations/5;
-        
-//        System.out.println(new Random(seed).nextInt());
         
         DataSet batik;
         SplitTestAndTrain trainTest;
@@ -55,7 +62,34 @@ public class CNNBatikExample {
         List<INDArray> testLabels = new ArrayList<>();
 
         log.info("Load data....");
-        DataSetIterator batikIter = new BatikDataSetIterator(batchSize, numSamples, false);
+        String labeledFile = "D:/nitip/kuliah/ui/thesis/android/dataset cifar/kaggle/trainLabels.csv";
+        String labeledPath = "D:/nitip/kuliah/ui/thesis/android/dataset cifar/kaggle/train";
+        List<String> labels = new ArrayList<>(); 
+        
+        BufferedReader br = new BufferedReader(new FileReader(labeledFile));
+        String tempLabel = br.readLine();
+        Set<String> labelSet = new HashSet<>();
+        while (tempLabel != null) {
+        	if (tempLabel.split("\\,")[0].equalsIgnoreCase("id")) {
+        		
+        	} else {
+        		labelSet.add(tempLabel.split("\\,")[1]);
+        	}
+        	tempLabel = br.readLine();
+        }
+        br.close();
+        
+        int count = 1;
+        for (String s : labelSet) {
+        	System.out.println(s);
+        	labels.add(String.valueOf(count));
+        	count++;
+        }
+        
+        // Instantiating RecordReader. Specify height and width of images.
+        RecordReader recordReader = new ImageRecordReader(32, 32, true, labels);
+        recordReader.initialize(new FileSplit(new File(labeledPath)));
+        DataSetIterator batikIter = new RecordReaderDataSetIterator(recordReader, batchSize);
         
         log.info("Build model....");
 		MultiLayerConfiguration.Builder builder = new NeuralNetConfiguration.Builder()
@@ -68,7 +102,7 @@ public class CNNBatikExample {
 								.nIn(nChannels).nOut(6)
 								.weightInit(WeightInit.XAVIER)
 								.activation("relu").build())
-				.layer(1, new SubsamplingLayer.Builder(SubsamplingLayer.PoolingType.MAX, new int[] {2, 2 }).build())
+				.layer(1, new SubsamplingLayer.Builder(SubsamplingLayer.PoolingType.MAX, new int[] {2, 2}).build())
 				.layer(2, new OutputLayer.Builder(
 								LossFunctions.LossFunction.NEGATIVELOGLIKELIHOOD)
 								.nOut(outputNum)
@@ -77,7 +111,7 @@ public class CNNBatikExample {
 								.build()).backprop(true)
 				.pretrain(false);
 
-        new ConvolutionLayerSetup(builder, Variables.BASE_DATA_HEIGHT, Variables.BASE_DATA_WIDTH, nChannels);
+        new ConvolutionLayerSetup(builder, 32, 32, nChannels);
 
         MultiLayerConfiguration conf = builder.build();
 
@@ -90,7 +124,6 @@ public class CNNBatikExample {
         	batik = batikIter.next();
             trainTest = batik.splitTestAndTrain(splitTrainNum, new Random(seed)); // train set that is the result
             trainInput = trainTest.getTrain(); // get feature matrix and labels for training
-//            System.out.println(trainInput.getFeatureMatrix().rows());
             testInput.add(trainTest.getTest().getFeatureMatrix());
             testLabels.add(trainTest.getTest().getLabels());
             model.fit(trainInput);
@@ -98,9 +131,7 @@ public class CNNBatikExample {
 
         log.info("Evaluate weights....");
 
-        log.info("Evaluate model....");
-//        System.out.println(trainInput);
-//        System.out.println(testInput.size());        
+        log.info("Evaluate model....");        
         Evaluation eval = new Evaluation(outputNum);
         for(int i = 0; i < testInput.size(); i++) {
             INDArray output = model.output(testInput.get(i));
